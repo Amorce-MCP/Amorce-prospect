@@ -114,13 +114,13 @@ class AmorceApp {
     this._btnPolish.addEventListener('click', () => this._onPolish());
 
     // LinkedIn workflow
-    this._btnCopyLinkedIn.addEventListener('click', () => this._onCopyLinkedIn());
-    this._btnRestartLinkedIn.addEventListener('click', () => this._showEwState('init'));
-    this._btnPolishLinkedIn.addEventListener('click', () => this._onPolishLinkedIn());
+    this._btnCopyLinkedIn?.addEventListener('click', () => this._onCopyLinkedIn());
+    this._btnRestartLinkedIn?.addEventListener('click', () => this._showEwState('init'));
+    this._btnPolishLinkedIn?.addEventListener('click', () => this._onPolishLinkedIn());
 
     // Channel selector
     [this._chBtnEmail, this._chBtnLinkedIn].forEach(btn => {
-      btn.addEventListener('click', () => this._onChannelSwitch(btn.dataset.channel));
+      btn?.addEventListener('click', () => this._onChannelSwitch(btn.dataset.channel));
     });
   }
 
@@ -552,10 +552,10 @@ class AmorceApp {
   // ── Email workflow states ───────────────────────────────────────────────────
 
   _showEwState(state) {
-    this._ewStateInit.classList.toggle('hidden',      state !== 'init');
-    this._ewStateQuestions.classList.toggle('hidden', state !== 'questions');
-    this._ewStateEmail.classList.toggle('hidden',     state !== 'email');
-    this._ewStateLinkedIn.classList.toggle('hidden',  state !== 'linkedin');
+    this._ewStateInit?.classList.toggle('hidden',      state !== 'init');
+    this._ewStateQuestions?.classList.toggle('hidden', state !== 'questions');
+    this._ewStateEmail?.classList.toggle('hidden',     state !== 'email');
+    this._ewStateLinkedIn?.classList.toggle('hidden',  state !== 'linkedin');
   }
 
   _onChannelSwitch(channel) {
