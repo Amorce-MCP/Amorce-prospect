@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+playwright
+httpx
+beautifulsoup4
+aiosqlite
+anthropic
+python-dotenv
+pydantic
+lxml

@@ -1,0 +1,34 @@
+Entreprise : {company_name}
+URL : {url}
+Secteur détecté : {detected_need}
+
+STRATÉGIE EMAIL :
+  Profil : {profile}
+  Mission principale : {primary_mission}
+  Missions secondaires : {secondary_missions}
+  Insight clé : {key_insight}
+  Point de douleur : {pain_point}
+
+DONNÉES SITE :
+  Chatbot présent : {has_chatbot} (confiance : {chatbot_confidence})
+  Catalogue produit : {has_catalog}
+  Service client actif : {has_customer_service}
+  Formulaire de contact : {has_contact_form}
+
+SCORE GEO : {geo_score}/100
+  - Données structurées (schema.org) : {schema_score}/20
+  - Contenu FAQ/Q&A : {faq_score}/20
+  - Entités nommées : {entities_score}/15
+  - Contenu factuel : {factual_score}/15
+  - Fraîcheur : {freshness_score}/15
+  - Multi-canaux : {multichannel_score}/15
+
+Extrait du site (max 400 chars) : {site_excerpt}
+
+INSTRUCTIONS SPÉCIFIQUES :
+{email_angle_instructions}
+
+Rédige un email de prospection en suivant exactement
+la structure du prompt système.
+Personnalise chaque section avec les informations ci-dessus.
+Ne laisse aucune phrase générique.

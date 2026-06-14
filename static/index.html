@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AMORCE Prospector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=2">
+</head>
+<body>
+
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-mark">⚡</span>
+        <span class="logo-name">AMORCE</span>
+      </div>
+      <p class="tagline">Connectez vos clients à ChatGPT — Casablanca</p>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- Input zone -->
+    <section class="input-zone card">
+      <div class="input-header">
+        <h2>URLs à prospecter</h2>
+        <span id="url-counter" class="url-counter">0 URL détectée</span>
+      </div>
+      <textarea
+        id="url-input"
+        class="url-textarea"
+        rows="6"
+        placeholder="Collez vos URLs ici, une par ligne&#10;https://exemple.ma&#10;https://autre-site.ma"
+      ></textarea>
+      <div class="input-actions">
+        <button id="btn-start" class="btn btn-primary" disabled>
+          <span class="btn-icon">🚀</span>
+          <span class="btn-text">Lancer la prospection</span>
+          <span class="spinner hidden"></span>
+        </button>
+        <button id="btn-clear" class="btn btn-ghost">Effacer tout</button>
+      </div>
+    </section>
+
+    <!-- Live workflow cards -->
+    <section id="workflow-section" class="hidden">
+      <h2 class="section-title">Traitement en cours</h2>
+      <div id="workflow-grid" class="workflow-grid"></div>
+    </section>
+
+    <!-- Results table -->
+    <section id="results-section">
+      <div class="results-header">
+        <h2 class="section-title">Prospects qualifiés</h2>
+        <button id="btn-export" class="btn btn-ghost btn-sm">📥 Exporter CSV</button>
+      </div>
+      <div class="filter-bar">
+        <button class="filter-btn active" data-filter="all">Tous</button>
+        <button class="filter-btn" data-filter="3">⭐⭐⭐ Score 3</button>
+        <button class="filter-btn" data-filter="2">⭐⭐ Score 2</button>
+        <button class="filter-btn" data-filter="1">⭐ Score 1</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="prospects-table">
+          <thead>
+            <tr>
+              <th>Entreprise</th>
+              <th id="th-score" class="sortable sort-desc">Score <span class="sort-arrow">↓</span></th>
+              <th>Besoin détecté</th>
+              <th>Mission</th>
+              <th>Chatbot</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="prospects-tbody">
+            <tr class="empty-row">
+              <td colspan="7">Aucun prospect. Lancez une prospection !</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Prospect detail modal -->
+  <div id="prospect-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3 id="modal-company-name">—</h3>
+          <a id="modal-company-url" class="modal-url" href="#" target="_blank" rel="noopener"></a>
+        </div>
+        <button class="modal-close" id="modal-close" aria-label="Fermer">✕</button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Chatbot toggle -->
+        <div class="chatbot-toggle-row">
+          <span class="chatbot-toggle-label">Chatbot présent sur le site</span>
+          <div class="chatbot-toggle-group" id="chatbot-toggle-group">
+            <button class="chatbot-btn" data-val="true" id="chatbot-btn-yes">Oui</button>
+            <button class="chatbot-btn chatbot-btn-active-none" data-val="null" id="chatbot-btn-unknown">?</button>
+            <button class="chatbot-btn" data-val="false" id="chatbot-btn-no">Non</button>
+          </div>
+        </div>
+
+        <!-- Analysis panel -->
+        <div id="modal-analysis" class="modal-analysis-section"></div>
+
+        <!-- Email workflow -->
+        <div class="email-workflow-section">
+          <div class="email-workflow-header">
+            <h4>Email de prospection</h4>
+          </div>
+
+          <!-- State: no email -->
+          <div id="ew-state-init" class="ew-state">
+            <p class="ew-hint">Générez un email personnalisé en répondant à quelques questions.</p>
+            <button id="btn-generate-questions" class="btn btn-primary">
+              <span class="btn-icon">💬</span>
+              <span class="btn-text">Générer des questions</span>
+              <span class="spinner hidden"></span>
+            </button>
+          </div>
+
+          <!-- State: questions -->
+          <div id="ew-state-questions" class="ew-state hidden">
+            <div id="ew-questions-list"></div>
+            <button id="btn-generate-email" class="btn btn-primary" style="margin-top:12px">
+              <span class="btn-icon">✉️</span>
+              <span class="btn-text">Générer l'email</span>
+              <span class="spinner hidden"></span>
+            </button>
+          </div>
+
+          <!-- State: email editor -->
+          <div id="ew-state-email" class="ew-state hidden">
+            <label class="field-label">Objet</label>
+            <input id="ew-subject" type="text" class="ew-subject-input" placeholder="Objet de l'email">
+
+            <label class="field-label" style="margin-top:12px">Corps</label>
+            <textarea id="ew-body" class="ew-body-textarea" rows="12" placeholder="Corps de l'email"></textarea>
+
+            <div class="ew-actions">
+              <button id="btn-save-email" class="btn btn-primary btn-sm">💾 Sauvegarder</button>
+              <button id="btn-copy-email" class="btn btn-ghost btn-sm">📋 Copier</button>
+              <a id="btn-gmail" class="btn btn-ghost btn-sm" target="_blank" rel="noopener">✉️ Gmail</a>
+              <button id="btn-restart-questions" class="btn btn-ghost btn-sm">🔄 Recommencer</button>
+            </div>
+
+            <div class="polish-section">
+              <label class="field-label">Polish IA</label>
+              <div class="polish-row">
+                <input id="ew-polish-instruction" type="text" class="polish-input"
+                  placeholder="Ex : rends-le plus court, insiste sur le ROI...">
+                <button id="btn-polish" class="btn btn-secondary btn-sm">
+                  <span class="btn-text">✨ Améliorer</span>
+                  <span class="spinner hidden"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js?v=2"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+Analyse ce site d'entreprise marocaine.
+
+Titre : {title}
+Description : {meta_description}
+Contenu extrait : {visible_text}
+Signaux techniques détectés :
+  - Catalogue : {has_catalog}
+  - Service client : {has_customer_service}
+  - Formulaire contact : {has_contact_form}
+
+Score initial par règles : {initial_score}
+Mission candidate : {candidate_mission}
+
+Confirme ou affine ce score selon le contenu réel du site.
+Si le contenu contredit le score initial, corrige-le.

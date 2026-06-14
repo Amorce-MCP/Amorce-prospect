@@ -1,0 +1,23 @@
+# Secrets & base de données
+.env
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Tests & couverture
+.coverage
+htmlcov/
+
+# IDE & outils locaux
+.idea/
+.vscode/
+
+# Fichiers générés
+llm_history.md
+
+# Mémoire Claude
+.claude/
