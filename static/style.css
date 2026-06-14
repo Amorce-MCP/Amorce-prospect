@@ -397,33 +397,33 @@ body {
 /* Channel + language controls row */
 .ew-controls-row {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; margin-bottom: 4px;
+  padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--rs);
 }
 
-/* Channel toggle */
-.ew-channel-group {
-  display: flex; gap: 0;
-}
+.ew-channel-group { display: flex; gap: 4px; }
+
 .ew-channel-btn {
-  padding: 5px 14px; font-size: 12px; font-weight: 500; cursor: pointer;
-  border: 1px solid var(--border); background: var(--surface);
-  color: var(--muted); transition: background 0.15s, color 0.15s;
+  padding: 4px 12px; font-size: 12px; font-weight: 500;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--rs); color: var(--muted);
+  cursor: pointer; font-family: inherit;
+  transition: all 150ms ease;
 }
-.ew-channel-btn:first-child { border-radius: 6px 0 0 6px; }
-.ew-channel-btn:last-child  { border-radius: 0 6px 6px 0; border-left: none; }
+.ew-channel-btn:hover { border-color: var(--muted); color: var(--text); }
 .ew-channel-btn.ew-channel-active {
-  background: var(--accent, #6366f1); color: #fff; border-color: var(--accent, #6366f1);
+  background: rgba(26,188,156,.2); border-color: var(--accent); color: var(--accent);
 }
 
 /* Language toggle */
 .ew-lang-label {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 13px; color: var(--muted); cursor: pointer;
-  user-select: none;
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; font-weight: 500; color: var(--muted);
+  cursor: pointer; user-select: none;
 }
 .ew-lang-label input[type="checkbox"] {
-  accent-color: var(--accent, #6366f1);
-  width: 15px; height: 15px; cursor: pointer;
+  accent-color: var(--accent);
+  width: 14px; height: 14px; cursor: pointer;
 }
 
 /* Questions list */
