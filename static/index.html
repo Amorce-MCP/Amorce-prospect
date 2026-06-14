@@ -113,15 +113,27 @@
         <!-- Analysis panel -->
         <div id="modal-analysis" class="modal-analysis-section"></div>
 
-        <!-- Email workflow -->
+        <!-- Outreach workflow (Email / LinkedIn) -->
         <div class="email-workflow-section">
           <div class="email-workflow-header">
-            <h4>Email de prospection</h4>
+            <h4>Message de prospection</h4>
           </div>
 
-          <!-- State: no email -->
+          <!-- Channel + language controls -->
+          <div class="ew-controls-row">
+            <div class="ew-channel-group" id="ew-channel-group">
+              <button class="ew-channel-btn ew-channel-active" data-channel="email" id="ew-ch-email">✉️ Email</button>
+              <button class="ew-channel-btn" data-channel="linkedin" id="ew-ch-linkedin">💼 LinkedIn</button>
+            </div>
+            <label class="ew-lang-label">
+              <input type="checkbox" id="ew-lang-en">
+              English
+            </label>
+          </div>
+
+          <!-- State: no message -->
           <div id="ew-state-init" class="ew-state">
-            <p class="ew-hint">Générez un email personnalisé en répondant à quelques questions.</p>
+            <p class="ew-hint">Générez un message personnalisé en répondant à quelques questions.</p>
             <button id="btn-generate-questions" class="btn btn-primary">
               <span class="btn-icon">💬</span>
               <span class="btn-text">Générer des questions</span>
@@ -160,6 +172,29 @@
                 <input id="ew-polish-instruction" type="text" class="polish-input"
                   placeholder="Ex : rends-le plus court, insiste sur le ROI...">
                 <button id="btn-polish" class="btn btn-secondary btn-sm">
+                  <span class="btn-text">✨ Améliorer</span>
+                  <span class="spinner hidden"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- State: LinkedIn message editor -->
+          <div id="ew-state-linkedin" class="ew-state hidden">
+            <label class="field-label">Message LinkedIn</label>
+            <textarea id="ew-linkedin-msg" class="ew-body-textarea" rows="8" placeholder="Message LinkedIn..."></textarea>
+
+            <div class="ew-actions">
+              <button id="btn-copy-linkedin" class="btn btn-ghost btn-sm">📋 Copier</button>
+              <button id="btn-restart-linkedin" class="btn btn-ghost btn-sm">🔄 Recommencer</button>
+            </div>
+
+            <div class="polish-section">
+              <label class="field-label">Polish IA</label>
+              <div class="polish-row">
+                <input id="ew-linkedin-polish-instruction" type="text" class="polish-input"
+                  placeholder="Ex : rends-le plus court, ajoute une accroche...">
+                <button id="btn-polish-linkedin" class="btn btn-secondary btn-sm">
                   <span class="btn-text">✨ Améliorer</span>
                   <span class="spinner hidden"></span>
                 </button>

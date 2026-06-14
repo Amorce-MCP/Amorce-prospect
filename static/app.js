@@ -10,6 +10,7 @@ class AmorceApp {
     this.filter = 'all';
     this._currentProspectId = null;
     this._ewQuestions = [];
+    this._ewChannel = 'email';
     this._bindDOM();
     this._loadProspects();
   }
@@ -52,10 +53,23 @@ class AmorceApp {
     this._btnCopyEmail      = document.getElementById('btn-copy-email');
     this._btnGmail          = document.getElementById('btn-gmail');
     this._btnRestartQ       = document.getElementById('btn-restart-questions');
-    this._btnPolish         = document.getElementById('btn-polish');
-    this._ewSubject         = document.getElementById('ew-subject');
-    this._ewBody            = document.getElementById('ew-body');
-    this._ewPolishInstruct  = document.getElementById('ew-polish-instruction');
+    this._btnPolish              = document.getElementById('btn-polish');
+    this._ewSubject              = document.getElementById('ew-subject');
+    this._ewBody                 = document.getElementById('ew-body');
+    this._ewPolishInstruct       = document.getElementById('ew-polish-instruction');
+    this._ewLangEn               = document.getElementById('ew-lang-en');
+
+    // LinkedIn elements
+    this._ewStateLinkedIn        = document.getElementById('ew-state-linkedin');
+    this._ewLinkedInMsg          = document.getElementById('ew-linkedin-msg');
+    this._btnCopyLinkedIn        = document.getElementById('btn-copy-linkedin');
+    this._btnRestartLinkedIn     = document.getElementById('btn-restart-linkedin');
+    this._ewLinkedInPolishInstruct = document.getElementById('ew-linkedin-polish-instruction');
+    this._btnPolishLinkedIn      = document.getElementById('btn-polish-linkedin');
+
+    // Channel buttons
+    this._chBtnEmail             = document.getElementById('ew-ch-email');
+    this._chBtnLinkedIn          = document.getElementById('ew-ch-linkedin');
 
     // Events
     this._urlInput.addEventListener('input', () => this._onUrlInput());
@@ -93,11 +107,21 @@ class AmorceApp {
 
     // Email workflow
     this._btnGenQuestions.addEventListener('click', () => this._onGenerateQuestions());
-    this._btnGenEmail.addEventListener('click', () => this._onGenerateEmail());
+    this._btnGenEmail.addEventListener('click', () => this._onGenerateMessage());
     this._btnSaveEmail.addEventListener('click', () => this._onSaveEmail());
     this._btnCopyEmail.addEventListener('click', () => this._onCopyEmail());
     this._btnRestartQ.addEventListener('click', () => this._showEwState('init'));
     this._btnPolish.addEventListener('click', () => this._onPolish());
+
+    // LinkedIn workflow
+    this._btnCopyLinkedIn.addEventListener('click', () => this._onCopyLinkedIn());
+    this._btnRestartLinkedIn.addEventListener('click', () => this._showEwState('init'));
+    this._btnPolishLinkedIn.addEventListener('click', () => this._onPolishLinkedIn());
+
+    // Channel selector
+    [this._chBtnEmail, this._chBtnLinkedIn].forEach(btn => {
+      btn.addEventListener('click', () => this._onChannelSwitch(btn.dataset.channel));
+    });
   }
 
   // ── URL input helpers ───────────────────────────────────────────────────────
@@ -460,6 +484,11 @@ class AmorceApp {
 
     this._currentProspectId = prospectId;
     this._ewQuestions = [];
+    this._ewChannel = 'email';
+    this._chBtnEmail.classList.add('ew-channel-active');
+    this._chBtnLinkedIn.classList.remove('ew-channel-active');
+    this._btnGenEmail.querySelector('.btn-icon').textContent = '✉️';
+    this._btnGenEmail.querySelector('.btn-text').textContent = "Générer l'email";
 
     this._modalCompanyName.textContent = p.company_name || '—';
     this._modalCompanyUrl.textContent  = (p.url || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
@@ -526,6 +555,22 @@ class AmorceApp {
     this._ewStateInit.classList.toggle('hidden',      state !== 'init');
     this._ewStateQuestions.classList.toggle('hidden', state !== 'questions');
     this._ewStateEmail.classList.toggle('hidden',     state !== 'email');
+    this._ewStateLinkedIn.classList.toggle('hidden',  state !== 'linkedin');
+  }
+
+  _onChannelSwitch(channel) {
+    this._ewChannel = channel;
+    this._chBtnEmail.classList.toggle('ew-channel-active',    channel === 'email');
+    this._chBtnLinkedIn.classList.toggle('ew-channel-active', channel === 'linkedin');
+    const genBtn = this._btnGenEmail;
+    if (channel === 'linkedin') {
+      genBtn.querySelector('.btn-icon').textContent = '💼';
+      genBtn.querySelector('.btn-text').textContent = 'Générer le message LinkedIn';
+    } else {
+      genBtn.querySelector('.btn-icon').textContent = '✉️';
+      genBtn.querySelector('.btn-text').textContent = "Générer l'email";
+    }
+    this._showEwState('init');
   }
 
   _setBtnLoading(btn, loading) {
@@ -564,6 +609,14 @@ class AmorceApp {
     `).join('');
   }
 
+  async _onGenerateMessage() {
+    if (this._ewChannel === 'linkedin') {
+      await this._onGenerateLinkedIn();
+    } else {
+      await this._onGenerateEmail();
+    }
+  }
+
   async _onGenerateEmail() {
     if (!this._currentProspectId) return;
     const answers = this._ewQuestions.map((_, i) => {
@@ -573,10 +626,11 @@ class AmorceApp {
 
     this._setBtnLoading(this._btnGenEmail, true);
     try {
+      const language = this._ewLangEn.checked ? 'en' : 'fr';
       const resp = await fetch(`/api/prospects/${this._currentProspectId}/email/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questions: this._ewQuestions, answers }),
+        body: JSON.stringify({ questions: this._ewQuestions, answers, language }),
       });
       if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
@@ -592,6 +646,60 @@ class AmorceApp {
       console.error('Failed to generate email:', err);
     } finally {
       this._setBtnLoading(this._btnGenEmail, false);
+    }
+  }
+
+  async _onGenerateLinkedIn() {
+    if (!this._currentProspectId) return;
+    const answers = this._ewQuestions.map((_, i) => {
+      const el = document.getElementById(`ew-answer-${i}`);
+      return el ? el.value.trim() : '';
+    });
+
+    this._setBtnLoading(this._btnGenEmail, true);
+    try {
+      const language = this._ewLangEn.checked ? 'en' : 'fr';
+      const resp = await fetch(`/api/prospects/${this._currentProspectId}/linkedin/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questions: this._ewQuestions, answers, language }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      this._ewLinkedInMsg.value = data.message || '';
+      this._showEwState('linkedin');
+    } catch (err) {
+      console.error('Failed to generate LinkedIn message:', err);
+    } finally {
+      this._setBtnLoading(this._btnGenEmail, false);
+    }
+  }
+
+  _onCopyLinkedIn() {
+    navigator.clipboard.writeText(this._ewLinkedInMsg.value).catch(() => {});
+  }
+
+  async _onPolishLinkedIn() {
+    if (!this._currentProspectId) return;
+    const message     = this._ewLinkedInMsg.value;
+    const instruction = this._ewLinkedInPolishInstruct.value.trim();
+
+    this._setBtnLoading(this._btnPolishLinkedIn, true);
+    try {
+      const language = this._ewLangEn.checked ? 'en' : 'fr';
+      const resp = await fetch(`/api/prospects/${this._currentProspectId}/linkedin/polish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, instruction, language }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      this._ewLinkedInMsg.value = data.message || message;
+      this._ewLinkedInPolishInstruct.value = '';
+    } catch (err) {
+      console.error('LinkedIn polish failed:', err);
+    } finally {
+      this._setBtnLoading(this._btnPolishLinkedIn, false);
     }
   }
 
@@ -625,10 +733,11 @@ class AmorceApp {
 
     this._setBtnLoading(this._btnPolish, true);
     try {
+      const language = this._ewLangEn.checked ? 'en' : 'fr';
       const resp = await fetch(`/api/prospects/${this._currentProspectId}/email/polish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject, body, instruction }),
+        body: JSON.stringify({ subject, body, instruction, language }),
       });
       if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();

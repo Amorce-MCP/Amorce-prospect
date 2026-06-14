@@ -21,6 +21,8 @@ from models import (
     EmailPolishRequest,
     EmailQuestionsResponse,
     EmailSaveRequest,
+    LinkedInGenerateRequest,
+    LinkedInPolishRequest,
     Prospect,
     WorkflowEvent,
 )
@@ -251,6 +253,7 @@ async def email_generate(prospect_id: str, body: EmailGenerateRequest) -> dict:
     draft, trace = await email_writer.generate_email_from_answers(
         prospect, scraped_stub, prospect.analysis,
         body.questions, body.answers,
+        language=body.language,
     )
     await database.update_prospect(
         prospect_id,
@@ -288,7 +291,7 @@ async def email_polish(prospect_id: str, body: EmailPolishRequest) -> dict:
     ]
 
     draft, trace = await email_writer.polish_email(
-        body.subject, body.body, body.instruction, prospect, history=history
+        body.subject, body.body, body.instruction, prospect, history=history, language=body.language
     )
     await database.update_prospect(
         prospect_id,
@@ -308,6 +311,58 @@ async def email_polish(prospect_id: str, body: EmailPolishRequest) -> dict:
         llm_trace=trace,
     )
     return {"subject": draft.subject, "body": draft.body}
+
+
+@app.post("/api/prospects/{prospect_id}/linkedin/generate")
+async def linkedin_generate(prospect_id: str, body: LinkedInGenerateRequest) -> dict:
+    """Generate a LinkedIn message draft from Q&A answers."""
+    prospect = await database.get_prospect(prospect_id)
+    if prospect is None:
+        raise HTTPException(status_code=404, detail="Prospect not found")
+    if prospect.analysis is None:
+        raise HTTPException(status_code=422, detail="Prospect not yet analysed")
+
+    scraped_stub = _prospect_to_scraped_stub(prospect)
+
+    draft, trace = await email_writer.generate_linkedin_message(
+        prospect, scraped_stub, prospect.analysis,
+        body.questions, body.answers,
+        language=body.language,
+    )
+    await database.log_email_interaction(
+        prospect_id, "linkedin_generate",
+        {
+            "company": prospect.company_name,
+            "questions": body.questions,
+            "answers": body.answers,
+            "message_out": draft.message,
+        },
+        llm_trace=trace,
+    )
+    return {"message": draft.message}
+
+
+@app.post("/api/prospects/{prospect_id}/linkedin/polish")
+async def linkedin_polish(prospect_id: str, body: LinkedInPolishRequest) -> dict:
+    """Polish a LinkedIn message draft with an optional user instruction."""
+    prospect = await database.get_prospect(prospect_id)
+    if prospect is None:
+        raise HTTPException(status_code=404, detail="Prospect not found")
+
+    draft, trace = await email_writer.polish_linkedin_message(
+        body.message, body.instruction, prospect, language=body.language
+    )
+    await database.log_email_interaction(
+        prospect_id, "linkedin_polish",
+        {
+            "company": prospect.company_name,
+            "instruction": body.instruction,
+            "message_before": body.message,
+            "message_after": draft.message,
+        },
+        llm_trace=trace,
+    )
+    return {"message": draft.message}
 
 
 @app.patch("/api/prospects/{prospect_id}/email")

@@ -394,6 +394,38 @@ body {
 
 .ew-hint { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
 
+/* Channel + language controls row */
+.ew-controls-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 4px;
+}
+
+/* Channel toggle */
+.ew-channel-group {
+  display: flex; gap: 0;
+}
+.ew-channel-btn {
+  padding: 5px 14px; font-size: 12px; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--muted); transition: background 0.15s, color 0.15s;
+}
+.ew-channel-btn:first-child { border-radius: 6px 0 0 6px; }
+.ew-channel-btn:last-child  { border-radius: 0 6px 6px 0; border-left: none; }
+.ew-channel-btn.ew-channel-active {
+  background: var(--accent, #6366f1); color: #fff; border-color: var(--accent, #6366f1);
+}
+
+/* Language toggle */
+.ew-lang-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--muted); cursor: pointer;
+  user-select: none;
+}
+.ew-lang-label input[type="checkbox"] {
+  accent-color: var(--accent, #6366f1);
+  width: 15px; height: 15px; cursor: pointer;
+}
+
 /* Questions list */
 .ew-question-block { margin-bottom: 12px; }
 .ew-question-label {

@@ -7,7 +7,7 @@ from typing import Any
 import anthropic
 
 from config import settings
-from models import EmailDraft, Prospect, ScrapedData, SiteAnalysis
+from models import EmailDraft, LinkedInDraft, Prospect, ScrapedData, SiteAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ def _parse_email_response(raw: str) -> dict[str, Any]:
     raise ValueError(f"Impossible de parser la réponse email : {clean[:300]}")
 
 
-def _post_process(draft: EmailDraft) -> EmailDraft:
+def _post_process(draft: EmailDraft, language: str = "fr") -> EmailDraft:
     """Enforce subject ≤ 65 chars and guarantee signature in body. Log quality issues."""
     subject = draft.subject[:62] + "..." if len(draft.subject) > 65 else draft.subject
     body = draft.body
@@ -132,10 +132,12 @@ def _post_process(draft: EmailDraft) -> EmailDraft:
     if not (180 <= word_count <= 230):
         logger.warning("Email word count %d outside target range 180–230.", word_count)
 
-    if not body.strip().startswith("Bonjour"):
+    if language == "fr" and not body.strip().startswith("Bonjour"):
         logger.warning("Email body does not start with 'Bonjour,'.")
+    elif language == "en" and not body.strip().lower().startswith(("hello", "dear", "hi")):
+        logger.warning("Email body does not start with expected English greeting.")
 
-    if "30 minutes" not in body:
+    if "30 minutes" not in body and "30-minute" not in body:
         logger.warning("Email body missing CTA '30 minutes'.")
 
     body_lower = body.lower()
@@ -159,6 +161,7 @@ async def write_prospecting_email(
     analysis: SiteAnalysis | None = None,
     questions: list[str] | None = None,
     answers: list[str] | None = None,
+    language: str = "fr",
 ) -> tuple[EmailDraft, dict[str, Any]]:
     """Generate a prospecting email from prospect context.
 
@@ -198,7 +201,13 @@ async def write_prospecting_email(
     if qa_block:
         user_message += f"\nInformations recueillies auprès du commercial :\n{qa_block}\n"
 
+    lang_instruction = (
+        "Write the email ENTIRELY in English (subject and body)."
+        if language == "en"
+        else "Rédige l'email ENTIÈREMENT en français (objet et corps)."
+    )
     user_message += (
+        f"\n{lang_instruction}\n"
         "\nRédige un email de prospection selon les instructions du prompt système.\n"
         "Ne suis pas un framework marketing.\n"
         "Raisonne depuis le business de cette entreprise spécifique.\n"
@@ -235,7 +244,7 @@ async def write_prospecting_email(
             body=parsed["body"],
             mission_angle=parsed.get("mission_angle", ""),
         )
-        return _post_process(draft), trace
+        return _post_process(draft, language=language), trace
     except Exception as exc:
         logger.error("Email generation failed for %s: %s — using fallback", prospect.url, exc)
         return _FALLBACK_DRAFT, {}
@@ -247,9 +256,10 @@ async def generate_email_from_answers(
     analysis: SiteAnalysis,
     questions: list[str],
     answers: list[str],
+    language: str = "fr",
 ) -> tuple[EmailDraft, dict[str, Any]]:
     """Generate email from Q&A answers. Delegates to write_prospecting_email."""
-    return await write_prospecting_email(prospect, scraped, analysis, questions, answers)
+    return await write_prospecting_email(prospect, scraped, analysis, questions, answers, language=language)
 
 
 async def generate_email_questions(
@@ -339,6 +349,7 @@ async def polish_email(
     instruction: str,
     prospect: Prospect,
     history: list[dict[str, str]] | None = None,
+    language: str = "fr",
 ) -> tuple[EmailDraft, dict[str, Any]]:
     """Polish an email draft based on a user instruction.
 
@@ -354,12 +365,18 @@ async def polish_email(
 
     instr = instruction.strip() or "Améliore le style, la clarté et l'impact. Garde le même fond et la même structure."
 
+    lang_instruction = (
+        "Write the improved email ENTIRELY in English (subject and body)."
+        if language == "en"
+        else "Rédige l'email amélioré ENTIÈREMENT en français (objet et corps)."
+    )
     user_message = (
         f"Voici l'email actuel à améliorer :\n\n"
         f"Objet : {subject}\n\n"
         f"Corps :\n{body}\n\n"
         f"Entreprise ciblée : {prospect.company_name}\n\n"
         f"Instruction d'amélioration : {instr}\n\n"
+        f"{lang_instruction}\n\n"
         "Retourne UNIQUEMENT ce JSON sans markdown :\n"
         '{"subject": "...", "body": "...", "mission_angle": ""}'
     )
@@ -405,7 +422,210 @@ async def polish_email(
             body=parsed["body"],
             mission_angle=parsed.get("mission_angle", ""),
         )
-        return _post_process(draft), trace
+        return _post_process(draft, language=language), trace
     except Exception as exc:
         logger.error("Email polish failed for %s: %s — returning original", prospect.url, exc)
+        return original, {}
+
+
+# ---------------------------------------------------------------------------
+# LinkedIn message generation
+# ---------------------------------------------------------------------------
+
+_FALLBACK_LINKEDIN = LinkedInDraft(
+    message=(
+        "J'ai parcouru votre site et j'ai vu que vous êtes actifs sur un marché "
+        "où les comportements de recherche évoluent rapidement.\n\n"
+        "Je travaille avec Amorce, une startup marocaine qui intègre l'IA dans les "
+        "systèmes d'information. Si le sujet vous semble pertinent, je serais curieux "
+        "d'en discuter — 20 minutes suffisent."
+    )
+)
+
+_LINKEDIN_FORBIDDEN = [
+    "je me permets",
+    "je prends la liberté",
+    "suite à la visite",
+    "nous avons pensé que",
+    "cela nous a fait réfléchir",
+    "c'est là qu'on intervient",
+    "voici ce que nous proposons",
+    "boostez",
+    "révolutionnez",
+    "ne ratez pas le train",
+    "il hallucine",
+    "il invente des réponses",
+]
+
+
+def _post_process_linkedin(draft: LinkedInDraft) -> LinkedInDraft:
+    """Log quality issues for LinkedIn messages."""
+    message = draft.message
+    word_count = len(message.split())
+    if word_count > 180:
+        logger.warning("LinkedIn message word count %d exceeds 180.", word_count)
+    if word_count < 50:
+        logger.warning("LinkedIn message word count %d is too short.", word_count)
+    msg_lower = message.lower()
+    for phrase in _LINKEDIN_FORBIDDEN:
+        if phrase in msg_lower:
+            logger.warning("Forbidden phrase in LinkedIn message: '%s'", phrase)
+    return draft
+
+
+async def generate_linkedin_message(
+    prospect: Prospect,
+    scraped: ScrapedData,
+    analysis: SiteAnalysis,
+    questions: list[str] | None = None,
+    answers: list[str] | None = None,
+    language: str = "fr",
+) -> tuple[LinkedInDraft, dict[str, Any]]:
+    """Generate a LinkedIn prospecting message from prospect context.
+
+    Never raises — returns fallback message and empty trace on any error.
+    """
+    if not settings.ANTHROPIC_API_KEY:
+        logger.warning("ANTHROPIC_API_KEY not configured — using fallback LinkedIn message for %s", prospect.url)
+        return _FALLBACK_LINKEDIN, {}
+
+    chatbot_label = (
+        "oui" if prospect.has_chatbot is True
+        else "non" if prospect.has_chatbot is False
+        else "inconnu"
+    )
+    geo_score = analysis.geo_score if analysis else "N/A"
+
+    qa_block = ""
+    if questions and answers:
+        qa_block = "\n".join(
+            f"Q: {q}\nR: {a}" for q, a in zip(questions, answers) if a and a.strip()
+        )
+
+    lang_instruction = (
+        "Write the LinkedIn message ENTIRELY in English."
+        if language == "en"
+        else "Rédige le message LinkedIn ENTIÈREMENT en français."
+    )
+
+    user_message = (
+        f"Entreprise : {prospect.company_name}\n"
+        f"URL : {prospect.url}\n"
+        f"Secteur / besoin détecté : {prospect.detected_need or scraped.visible_text[:200]}\n\n"
+        "Signaux détectés :\n"
+        f"- Chatbot embarqué : {chatbot_label}\n"
+        f"- Catalogue produit : {'oui' if scraped.has_catalog else 'non'}\n"
+        f"- Service client actif : {'oui' if scraped.has_customer_service else 'non'}\n"
+        f"- Score GEO : {geo_score}/100\n\n"
+        f"Extrait du site :\n{scraped.visible_text[:400]}\n"
+    )
+
+    if qa_block:
+        user_message += f"\nInformations recueillies auprès du commercial :\n{qa_block}\n"
+
+    user_message += (
+        f"\n{lang_instruction}\n"
+        "Rédige un message LinkedIn de prospection selon les instructions du prompt système.\n"
+        "100 à 160 mots maximum. Zéro bullet point. Commence par une observation concrète.\n\n"
+        "Retourne UNIQUEMENT ce JSON valide, sans markdown :\n"
+        '{"message": "..."}'
+    )
+
+    system_prompt = _load_prompt("linkedin_system.txt")
+
+    try:
+        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        message = await client.messages.create(
+            model=settings.EMAIL_MODEL,
+            max_tokens=500,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        raw = message.content[0].text if message.content else ""
+        trace: dict[str, Any] = {
+            "system_prompt": system_prompt,
+            "user_message": user_message,
+            "raw_response": raw,
+            "model": settings.EMAIL_MODEL,
+            "input_tokens": message.usage.input_tokens,
+            "output_tokens": message.usage.output_tokens,
+        }
+        if not raw or not raw.strip():
+            logger.warning("Claude LinkedIn returned empty response for %s", prospect.url)
+            return _FALLBACK_LINKEDIN, trace
+        clean = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())
+        parsed = json.loads(clean)
+        draft = LinkedInDraft(message=parsed["message"])
+        return _post_process_linkedin(draft), trace
+    except Exception as exc:
+        logger.error("LinkedIn generation failed for %s: %s — using fallback", prospect.url, exc)
+        return _FALLBACK_LINKEDIN, {}
+
+
+async def polish_linkedin_message(
+    message_text: str,
+    instruction: str,
+    prospect: Prospect,
+    language: str = "fr",
+) -> tuple[LinkedInDraft, dict[str, Any]]:
+    """Polish a LinkedIn message draft based on a user instruction.
+
+    Never raises — returns the original message and empty trace on any error.
+    """
+    original = LinkedInDraft(message=message_text)
+
+    if not settings.ANTHROPIC_API_KEY:
+        logger.warning("ANTHROPIC_API_KEY not configured — returning original LinkedIn message")
+        return original, {}
+
+    instr = instruction.strip() or "Améliore le style et l'impact. Garde la même longueur et le même fond."
+    lang_instruction = (
+        "Write the improved message ENTIRELY in English."
+        if language == "en"
+        else "Rédige le message amélioré ENTIÈREMENT en français."
+    )
+
+    user_message = (
+        f"Voici le message LinkedIn actuel à améliorer :\n\n{message_text}\n\n"
+        f"Entreprise ciblée : {prospect.company_name}\n\n"
+        f"Instruction : {instr}\n\n"
+        f"{lang_instruction}\n\n"
+        "100 à 160 mots maximum. Zéro bullet point.\n\n"
+        "Retourne UNIQUEMENT ce JSON sans markdown :\n"
+        '{"message": "..."}'
+    )
+
+    system = (
+        "Tu es un expert en messages LinkedIn de prospection B2B pour Amorce, "
+        "une startup marocaine qui intègre l'IA dans les systèmes d'information. "
+        "Tu améliores des messages LinkedIn courts et directs selon les instructions, "
+        "en conservant le fond et en améliorant la forme. "
+        "Réponds UNIQUEMENT en JSON valide sans markdown."
+    )
+
+    try:
+        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        msg = await client.messages.create(
+            model=settings.EMAIL_MODEL,
+            max_tokens=400,
+            system=system,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        raw = msg.content[0].text if msg.content else ""
+        trace: dict[str, Any] = {
+            "system_prompt": system,
+            "user_message": user_message,
+            "raw_response": raw,
+            "model": settings.EMAIL_MODEL,
+            "input_tokens": msg.usage.input_tokens,
+            "output_tokens": msg.usage.output_tokens,
+        }
+        if not raw or not raw.strip():
+            return original, trace
+        clean = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())
+        parsed = json.loads(clean)
+        draft = LinkedInDraft(message=parsed["message"])
+        return _post_process_linkedin(draft), trace
+    except Exception as exc:
+        logger.error("LinkedIn polish failed for %s: %s — returning original", prospect.url, exc)
         return original, {}

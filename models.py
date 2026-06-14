@@ -116,6 +116,7 @@ class EmailGenerateRequest(BaseModel):
 
     questions: list[str]
     answers: list[str]
+    language: str = "fr"
 
 
 class EmailPolishRequest(BaseModel):
@@ -124,6 +125,7 @@ class EmailPolishRequest(BaseModel):
     subject: str
     body: str
     instruction: str = ""
+    language: str = "fr"
 
 
 class EmailSaveRequest(BaseModel):
@@ -131,3 +133,25 @@ class EmailSaveRequest(BaseModel):
 
     subject: str
     body: str
+
+
+class LinkedInDraft(BaseModel):
+    """Generated LinkedIn message for a prospect."""
+
+    message: str
+
+
+class LinkedInGenerateRequest(BaseModel):
+    """Q&A pairs submitted to generate the LinkedIn message."""
+
+    questions: list[str]
+    answers: list[str]
+    language: str = "fr"
+
+
+class LinkedInPolishRequest(BaseModel):
+    """Polish request for a LinkedIn message."""
+
+    message: str
+    instruction: str = ""
+    language: str = "fr"
