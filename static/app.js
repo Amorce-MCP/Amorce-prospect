@@ -10,6 +10,9 @@ class AmorceApp {
     this.filter = 'all';
     this._currentProspectId = null;
     this._ewQuestions = [];
+    this._ewAnswers = [];
+    this._ewEmailDraft = null;
+    this._ewLinkedInDraft = null;
     this._ewChannel = 'email';
     this._bindDOM();
     this._loadProspects();
@@ -110,12 +113,22 @@ class AmorceApp {
     this._btnGenEmail.addEventListener('click', () => this._onGenerateMessage());
     this._btnSaveEmail.addEventListener('click', () => this._onSaveEmail());
     this._btnCopyEmail.addEventListener('click', () => this._onCopyEmail());
-    this._btnRestartQ.addEventListener('click', () => this._showEwState('init'));
+    this._btnRestartQ.addEventListener('click', () => {
+      this._ewEmailDraft = null;
+      const p = this.prospects.find(x => x.id === this._currentProspectId);
+      if (p) { p.email_subject = null; p.email_body = null; }
+      this._smartEwState('email');
+    });
     this._btnPolish.addEventListener('click', () => this._onPolish());
 
     // LinkedIn workflow
     this._btnCopyLinkedIn?.addEventListener('click', () => this._onCopyLinkedIn());
-    this._btnRestartLinkedIn?.addEventListener('click', () => this._showEwState('init'));
+    this._btnRestartLinkedIn?.addEventListener('click', () => {
+      this._ewLinkedInDraft = null;
+      const p = this.prospects.find(x => x.id === this._currentProspectId);
+      if (p) p.linkedin_message = null;
+      this._smartEwState('linkedin');
+    });
     this._btnPolishLinkedIn?.addEventListener('click', () => this._onPolishLinkedIn());
 
     // Channel selector
@@ -484,11 +497,18 @@ class AmorceApp {
 
     this._currentProspectId = prospectId;
     this._ewQuestions = [];
+    this._ewAnswers = [];
     this._ewChannel = 'email';
     this._chBtnEmail.classList.add('ew-channel-active');
     this._chBtnLinkedIn.classList.remove('ew-channel-active');
-    this._btnGenEmail.querySelector('.btn-icon').textContent = '✉️';
-    this._btnGenEmail.querySelector('.btn-text').textContent = "Générer l'email";
+
+    // Load existing drafts from DB
+    this._ewEmailDraft = p.email_subject
+      ? { subject: p.email_subject, body: p.email_body || '' }
+      : null;
+    this._ewLinkedInDraft = p.linkedin_message
+      ? { message: p.linkedin_message }
+      : null;
 
     this._modalCompanyName.textContent = p.company_name || '—';
     this._modalCompanyUrl.textContent  = (p.url || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
@@ -502,14 +522,7 @@ class AmorceApp {
       this._modalAnalysis.innerHTML = '';
     }
 
-    if (p.email_subject) {
-      this._ewSubject.value = p.email_subject;
-      this._ewBody.value    = p.email_body || '';
-      this._updateGmailLink(p.email_subject, p.email_body || '');
-      this._showEwState('email');
-    } else {
-      this._showEwState('init');
-    }
+    this._smartEwState('email');
 
     this._modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -558,19 +571,50 @@ class AmorceApp {
     this._ewStateLinkedIn?.classList.toggle('hidden',  state !== 'linkedin');
   }
 
+  _setGenBtnLabel(channel) {
+    const icon = this._btnGenEmail.querySelector('.btn-icon');
+    const text = this._btnGenEmail.querySelector('.btn-text');
+    if (channel === 'linkedin') {
+      if (icon) icon.textContent = '💼';
+      if (text) text.textContent = 'Générer le message LinkedIn';
+    } else {
+      if (icon) icon.textContent = '✉️';
+      if (text) text.textContent = "Générer l'email";
+    }
+  }
+
+  _smartEwState(channel) {
+    this._setGenBtnLabel(channel);
+    if (channel === 'email') {
+      if (this._ewEmailDraft) {
+        this._ewSubject.value = this._ewEmailDraft.subject;
+        this._ewBody.value    = this._ewEmailDraft.body;
+        this._updateGmailLink(this._ewEmailDraft.subject, this._ewEmailDraft.body);
+        this._showEwState('email');
+      } else if (this._ewQuestions.length > 0) {
+        this._renderQuestions();
+        this._showEwState('questions');
+      } else {
+        this._showEwState('init');
+      }
+    } else {
+      if (this._ewLinkedInDraft) {
+        this._ewLinkedInMsg.value = this._ewLinkedInDraft.message;
+        this._showEwState('linkedin');
+      } else if (this._ewQuestions.length > 0) {
+        this._renderQuestions();
+        this._showEwState('questions');
+      } else {
+        this._showEwState('init');
+      }
+    }
+  }
+
   _onChannelSwitch(channel) {
     this._ewChannel = channel;
     this._chBtnEmail.classList.toggle('ew-channel-active',    channel === 'email');
     this._chBtnLinkedIn.classList.toggle('ew-channel-active', channel === 'linkedin');
-    const genBtn = this._btnGenEmail;
-    if (channel === 'linkedin') {
-      genBtn.querySelector('.btn-icon').textContent = '💼';
-      genBtn.querySelector('.btn-text').textContent = 'Générer le message LinkedIn';
-    } else {
-      genBtn.querySelector('.btn-icon').textContent = '✉️';
-      genBtn.querySelector('.btn-text').textContent = "Générer l'email";
-    }
-    this._showEwState('init');
+    this._smartEwState(channel);
   }
 
   _setBtnLoading(btn, loading) {
@@ -582,6 +626,13 @@ class AmorceApp {
 
   async _onGenerateQuestions() {
     if (!this._currentProspectId) return;
+    // Reuse questions already generated this session
+    if (this._ewQuestions.length > 0) {
+      this._setGenBtnLabel(this._ewChannel);
+      this._renderQuestions();
+      this._showEwState('questions');
+      return;
+    }
     this._setBtnLoading(this._btnGenQuestions, true);
     try {
       const resp = await fetch(`/api/prospects/${this._currentProspectId}/email/questions`, {
@@ -590,6 +641,7 @@ class AmorceApp {
       if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
       this._ewQuestions = data.questions || [];
+      this._setGenBtnLabel(this._ewChannel);
       this._renderQuestions();
       this._showEwState('questions');
     } catch (err) {
@@ -604,7 +656,7 @@ class AmorceApp {
       <div class="ew-question-block">
         <label class="ew-question-label">${this._esc(q)}</label>
         <textarea class="ew-answer-textarea" id="ew-answer-${i}" rows="2"
-          placeholder="Votre réponse..."></textarea>
+          placeholder="Votre réponse...">${this._esc(this._ewAnswers[i] || '')}</textarea>
       </div>
     `).join('');
   }
@@ -617,12 +669,17 @@ class AmorceApp {
     }
   }
 
-  async _onGenerateEmail() {
-    if (!this._currentProspectId) return;
-    const answers = this._ewQuestions.map((_, i) => {
+  _captureAnswers() {
+    this._ewAnswers = this._ewQuestions.map((_, i) => {
       const el = document.getElementById(`ew-answer-${i}`);
       return el ? el.value.trim() : '';
     });
+    return this._ewAnswers;
+  }
+
+  async _onGenerateEmail() {
+    if (!this._currentProspectId) return;
+    const answers = this._captureAnswers();
 
     this._setBtnLoading(this._btnGenEmail, true);
     try {
@@ -634,9 +691,10 @@ class AmorceApp {
       });
       if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
-      this._ewSubject.value = data.subject || '';
-      this._ewBody.value    = data.body || '';
-      this._updateGmailLink(data.subject || '', data.body || '');
+      this._ewEmailDraft = { subject: data.subject || '', body: data.body || '' };
+      this._ewSubject.value = this._ewEmailDraft.subject;
+      this._ewBody.value    = this._ewEmailDraft.body;
+      this._updateGmailLink(this._ewEmailDraft.subject, this._ewEmailDraft.body);
 
       const p = this.prospects.find(x => x.id === this._currentProspectId);
       if (p) { p.email_subject = data.subject; p.email_body = data.body; p.status = 'email_written'; }
@@ -651,10 +709,7 @@ class AmorceApp {
 
   async _onGenerateLinkedIn() {
     if (!this._currentProspectId) return;
-    const answers = this._ewQuestions.map((_, i) => {
-      const el = document.getElementById(`ew-answer-${i}`);
-      return el ? el.value.trim() : '';
-    });
+    const answers = this._captureAnswers();
 
     this._setBtnLoading(this._btnGenEmail, true);
     try {
@@ -666,7 +721,11 @@ class AmorceApp {
       });
       if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
-      this._ewLinkedInMsg.value = data.message || '';
+      this._ewLinkedInDraft = { message: data.message || '' };
+      this._ewLinkedInMsg.value = this._ewLinkedInDraft.message;
+
+      const p = this.prospects.find(x => x.id === this._currentProspectId);
+      if (p) p.linkedin_message = data.message;
       this._showEwState('linkedin');
     } catch (err) {
       console.error('Failed to generate LinkedIn message:', err);
@@ -694,8 +753,11 @@ class AmorceApp {
       });
       if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
-      this._ewLinkedInMsg.value = data.message || message;
+      this._ewLinkedInDraft = { message: data.message || message };
+      this._ewLinkedInMsg.value = this._ewLinkedInDraft.message;
       this._ewLinkedInPolishInstruct.value = '';
+      const p = this.prospects.find(x => x.id === this._currentProspectId);
+      if (p) p.linkedin_message = this._ewLinkedInDraft.message;
     } catch (err) {
       console.error('LinkedIn polish failed:', err);
     } finally {
@@ -713,6 +775,7 @@ class AmorceApp {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject, body }),
       });
+      this._ewEmailDraft = { subject, body };
       const p = this.prospects.find(x => x.id === this._currentProspectId);
       if (p) { p.email_subject = subject; p.email_body = body; p.status = 'email_written'; }
       this._renderTable();
@@ -743,6 +806,7 @@ class AmorceApp {
       const data = await resp.json();
       this._ewSubject.value = data.subject || subject;
       this._ewBody.value    = data.body    || body;
+      this._ewEmailDraft = { subject: this._ewSubject.value, body: this._ewBody.value };
       this._ewPolishInstruct.value = '';
       this._updateGmailLink(this._ewSubject.value, this._ewBody.value);
       const p = this.prospects.find(x => x.id === this._currentProspectId);

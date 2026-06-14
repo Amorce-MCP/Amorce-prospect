@@ -79,6 +79,7 @@ class Prospect(BaseModel):
     has_chatbot: bool | None = None   # set manually by user
     email_subject: str | None = None
     email_body: str | None = None
+    linkedin_message: str | None = None
     status: str = "pending"
     error_message: str | None = None
     analysis: SiteAnalysis | None = None

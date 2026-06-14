@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS prospects (
     has_chatbot     INTEGER,
     email_subject   TEXT,
     email_body      TEXT,
+    linkedin_message TEXT,
     status          TEXT DEFAULT 'pending',
     error_message   TEXT,
     created_at      TEXT NOT NULL,
@@ -63,6 +64,7 @@ def _row_to_prospect(row: aiosqlite.Row) -> Prospect:
         has_chatbot=has_chatbot,
         email_subject=row["email_subject"],
         email_body=row["email_body"],
+        linkedin_message=row["linkedin_message"] if "linkedin_message" in row.keys() else None,
         status=row["status"],
         error_message=row["error_message"],
         created_at=row["created_at"],
@@ -76,7 +78,7 @@ async def init_db(db_path: str | None = None) -> None:
     async with aiosqlite.connect(path) as db:
         await db.execute(_CREATE_TABLE_SQL)
         await db.execute(_CREATE_LOGS_TABLE_SQL)
-        for column in ("analysis_json TEXT", "has_chatbot INTEGER"):
+        for column in ("analysis_json TEXT", "has_chatbot INTEGER", "linkedin_message TEXT"):
             try:
                 await db.execute(f"ALTER TABLE prospects ADD COLUMN {column}")
             except Exception:
@@ -112,11 +114,11 @@ async def insert_prospect(prospect: Prospect, db_path: str | None = None) -> str
                 """INSERT INTO prospects (
                     id, url, company_name, email, score, detected_need,
                     suggested_mission, has_chatbot, email_subject, email_body,
-                    status, error_message, created_at, analysis_json
+                    linkedin_message, status, error_message, created_at, analysis_json
                 ) VALUES (
                     :id, :url, :company_name, :email, :score, :detected_need,
                     :suggested_mission, :has_chatbot, :email_subject, :email_body,
-                    :status, :error_message, :created_at, :analysis_json
+                    :linkedin_message, :status, :error_message, :created_at, :analysis_json
                 )""",
                 data,
             )

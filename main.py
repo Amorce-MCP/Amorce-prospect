@@ -329,6 +329,7 @@ async def linkedin_generate(prospect_id: str, body: LinkedInGenerateRequest) -> 
         body.questions, body.answers,
         language=body.language,
     )
+    await database.update_prospect(prospect_id, linkedin_message=draft.message)
     await database.log_email_interaction(
         prospect_id, "linkedin_generate",
         {
@@ -352,6 +353,7 @@ async def linkedin_polish(prospect_id: str, body: LinkedInPolishRequest) -> dict
     draft, trace = await email_writer.polish_linkedin_message(
         body.message, body.instruction, prospect, language=body.language
     )
+    await database.update_prospect(prospect_id, linkedin_message=draft.message)
     await database.log_email_interaction(
         prospect_id, "linkedin_polish",
         {
